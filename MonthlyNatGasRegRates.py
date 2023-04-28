@@ -37,6 +37,7 @@ class GetNatGasRates:
         return self
 
     def __exit__(self, exc_type, exc_value, trace):
+        # haven't decided what I want to do on exit yet
         pass
 
     def run_tool(self):
@@ -67,10 +68,10 @@ class GetNatGasRates:
                     with open(rate_sent_file, 'w') as file:
                         file.write(regulated_rates)
                         file.close()
-        if regulated_rates:
+        if 'regulated_rates' in locals():
             print(regulated_rates)
         else:
-            print("No rates added to website yet!")
+            print(f"No new rates parsed from website yet!")
 
     def emailer(self, subject: str, body: str):
         """
@@ -86,8 +87,8 @@ class GetNatGasRates:
         message["From"] = self.email_sender
         message["Subject"] = f'{subject}'
 
-        messageText = MIMEText(body, 'html')
-        message.attach(messageText)
+        message_text = MIMEText(body, 'html')
+        message.attach(message_text)
 
         email = self.email_to
         password = self.email_secret_pass
@@ -107,7 +108,6 @@ class GetNatGasRates:
         """
         # init variables
         tables = []
-        regulated_rates = None
 
         # create the requests do not verify ssl TODO I should figure the SLL piece out
         r = requests.get(url, verify=False)
@@ -136,7 +136,6 @@ if __name__ == "__main__":
 
     with GetNatGasRates(
             url=r'https://ucahelps.alberta.ca/regulated-rates.aspx',
-            send_email=False,
+            send_email=True,
     ) as tool:
-        tool.purge_temp_folder()
         tool.run_tool()
