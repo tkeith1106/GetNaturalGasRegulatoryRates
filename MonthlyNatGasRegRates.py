@@ -6,6 +6,13 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import config
+import argparse
+
+# cli arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--purgeTempData', action='store_false', dest='purgeTempData', help='This argument will purge any temporary files.')
+parser.set_defaults(purgeTempData=False)
+args = parser.parse_known_args()[0]
 
 class GetNatGasRates:
     # init class variables
@@ -136,6 +143,9 @@ if __name__ == "__main__":
 
     with GetNatGasRates(
             url=r'https://ucahelps.alberta.ca/regulated-rates.aspx',
-            send_email=True,
+            send_email=False,
     ) as tool:
+        # if cli argument is flagged then it will delete all temp folder files and rebuild temp folder
+        if args.purgeTempData:
+            tool.purge_temp_folder()
         tool.run_tool()
