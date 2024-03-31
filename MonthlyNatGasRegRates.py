@@ -24,7 +24,8 @@ class GetNatGasRates:
         self.send_email = send_email
 
         # these are hidden behind a config file for privacy and security reasons
-        self.email_to = config.email_to
+        self.email_bcc_to = config.email_bcc_to
+        self.email_main = config.email_main
         self.email_sender = config.email_sender
         self.email_secret_pass = config.email_secret_pass
 
@@ -75,6 +76,8 @@ class GetNatGasRates:
                     with open(rate_sent_file, 'w') as file:
                         file.write(regulated_rates)
                         file.close()
+                else:
+                    print("No emails sent")
                 break
         if 'regulated_rates' in locals():
             print(regulated_rates)
@@ -91,21 +94,27 @@ class GetNatGasRates:
 
         # setup email
         message = MIMEMultipart()
-        message["To"] = self.email_to
+        message["Bcc"] = ','.join(self.email_bcc_to)
         message["From"] = self.email_sender
         message["Subject"] = f'{subject}'
 
         message_text = MIMEText(body, 'html')
         message.attach(message_text)
 
-        email = self.email_to
+        email = self.email_main
         password = self.email_secret_pass
 
-        server = smtplib.SMTP('smtp.gmail.com:587')
-        server.ehlo('Gmail')
+        # # use below for gmail smtp
+        # server = smtplib.SMTP('smtp.gmail.com:587')
+        # server.ehlo('Gmail')
+
+        # use below for iCloud SMTP
+        server = smtplib.SMTP('smtp.mail.me.com:587')
+        server.ehlo()
+
         server.starttls()
         server.login(email, password)
-        server.sendmail(self.email_sender, self.email_to, message.as_string())
+        server.sendmail(self.email_sender, self.email_bcc_to, message.as_string())
         server.quit()
 
     @staticmethod
