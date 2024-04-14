@@ -1,12 +1,13 @@
-import pandas as pd
-import os
-import requests
+import argparse
+import config
 import datetime
-import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import config
-import argparse
+from io import StringIO
+import os
+import pandas as pd
+import requests
+import smtplib
 
 # cli arguments
 parser = argparse.ArgumentParser()
@@ -17,10 +18,11 @@ args = parser.parse_known_args()[0]
 
 class GetNatGasRates:
     # init class variables
-    def __init__(self, url: str = None, send_email: bool = False):
+    def __init__(self, send_email: bool = False):
 
         # turn user args in vars
-        self.url = url
+        self.auc_rates_url = r"https://ucahelps.alberta.ca/regulated-rates.aspx"
+        self.enmax_rates = r"https://www1.enmax.com/sign-up/build-my-plan"
         self.send_email = send_email
 
         # these are hidden behind a config file for privacy and security reasons
@@ -53,36 +55,85 @@ class GetNatGasRates:
         The methods drive the main execution of the script
         :return: None
         """
+        rate_sent_file = os.path.join(self.temp_data_loc, f"{datetime.datetime.now().strftime("%B").lower()}_rates.txt")
+        if os.path.exists(rate_sent_file):
+            print(f"No rate updates")
+            return
 
         # get the rate_tables from user provided URL
-        rate_tables = self.get_published_tables(self.url)
+        rate_tables = self.get_published_tables(self.auc_rates_url)
+        if len(rate_tables) > 1:
+            # generate the tables
+            html_tables = self.generate_html_tables(rate_tables)
 
-        # TODO: this could be made more dynamic for any URL with tables
-        # parse through dictionaries for the current year natural gas rate
+            # create email body
+            regulated_rates = f"""
+            <body>
+            <p>This months updated Electricity and Natural Gas Rates are Below:</p>
+            {"".join(html_tables)}
+            <br>
+            <p>
+            Visit Enmax for the most current Enmax Rates: <a href="{self.enmax_rates}">Current Enmax Easymax Rates</a>
+            <br><br>
+            Cheers, 
+            <br>
+            Python Automator
+            </p>
+            """
+
+            if self.send_email:
+                self.emailer(subject=f"Updated energy rates as of {datetime.datetime.now().strftime("%B %d, %Y")}", body=regulated_rates)
+
+                with open(rate_sent_file, 'w') as file:
+                    file.write(f"{regulated_rates}\n\n{"#"*25}\n{"#"*25}\n{"#"*25}\n\n")
+                    file.close()
+            else:
+                print("No emails sent")
+
+    @staticmethod
+    def generate_html_tables(rate_tables: list[dict]) -> list[str]:
+        """
+        This method generates the rates tables to be inserted in the email to the users
+        :param rate_tables: a dictionary of rates scraped from the AUC
+        :return: a List of html tables to be used in the email to be sent
+        """
+
+        html_tables = []
+
+        for index, table in enumerate(rate_tables):
+            # look for current months nat gas value
+            if f"{datetime.datetime.now().strftime('%Y')}" not in table[0][0]:
+                rate_tables.pop(index)
         for table in rate_tables:
-            # look for current months value
-            if f"{datetime.datetime.now().strftime('%Y')}" and "Natural Gas".lower() in table[0][0].lower():
-                rate_type = table[0][0]
-                month = table[(len(table) - 1)][0]
-                value = table[(len(table) - 1)][1]
-                regulated_rates = f"{rate_type} for {month} is {value}"
+            title = table[0][0]
+            table.pop(0)
+            html = "<h2>{title}</h2>\n<table style='border: 3px solid black; border-collapse: collapse;'>\n".format(
+                title=title.encode('ascii', 'xmlcharrefreplace').decode())
+            for key, row in table.items():
+                if key in [0, 1, 2]:
+                    html += "\t<tr style='border: 1px solid black'>\n\t"
+                    if str(row[0]) == "nan":
+                        continue
+                    for index, data in row.items():
+                        table_data = str(data).replace('nan', '').encode('ascii', 'xmlcharrefreplace').decode()
+                        html += f"\t\t<td style='border: 1px solid black'>{table_data}</td>\n\t"
+                    html += "</tr>\n"
 
-                rate_sent_file = os.path.join(self.temp_data_loc, f"{month}_{value.replace('.', '_')}.txt")
-                if not os.path.exists(rate_sent_file):
+            for key, row in reversed(table.items()):
+                if key not in [0, 1, 2]:
+                    html += "\t<tr style='border: 1px solid black'>\n\t"
+                    if str(row[0]) == "nan":
+                        continue
+                    for index, data in row.items():
+                        table_data = str(data).replace('nan', '').encode('ascii', 'xmlcharrefreplace').decode()
+                        html += f"\t\t<td style='border: 1px solid black'>{table_data}</td>\n\t"
+                    html += "</tr>\n"
 
-                    if self.send_email:
-                        self.emailer(subject=regulated_rates, body=regulated_rates)
+            html += "</table>\n<br><br>"
 
-                    with open(rate_sent_file, 'w') as file:
-                        file.write(regulated_rates)
-                        file.close()
-                else:
-                    print("No emails sent")
-                break
-        if 'regulated_rates' in locals():
-            print(regulated_rates)
-        else:
-            print(f"No new rates parsed from website yet!")
+            html_tables.append(html)
+
+        return html_tables
 
     def emailer(self, subject: str, body: str) -> None:
         """
@@ -120,7 +171,7 @@ class GetNatGasRates:
     @staticmethod
     def get_published_tables(url: str) -> list:
         """
-        This method returns all html tables from a given url
+        This method returns all html tables from a given auc_rates_url
         :return:
         """
         # init variables
@@ -130,7 +181,7 @@ class GetNatGasRates:
         r = requests.get(url, verify=False)
 
         # create the pandas df
-        all_tables = pd.read_html(r.text)
+        all_tables = pd.read_html(StringIO(r.text))
 
         # export tables to dictionaries
         for item in all_tables:
@@ -145,6 +196,8 @@ class GetNatGasRates:
         """
 
         if os.path.exists(self.temp_data_loc):
+            for files in os.listdir(self.temp_data_loc):
+                os.remove(os.path.join(self.temp_data_loc, files))
             os.removedirs(self.temp_data_loc)
             os.makedirs(self.temp_data_loc)
 
@@ -161,7 +214,6 @@ class GetNatGasRates:
 if __name__ == "__main__":
 
     with GetNatGasRates(
-            url=r'https://ucahelps.alberta.ca/regulated-rates.aspx',
             send_email=True,
     ) as tool:
         # if cli argument is flagged then it will delete all temp folder files and rebuild temp folder
