@@ -8,6 +8,7 @@ import os
 import pandas as pd
 import requests
 import smtplib
+from typing import Optional
 
 # cli arguments
 parser = argparse.ArgumentParser()
@@ -50,7 +51,7 @@ class GetNatGasRates:
         # haven't decided what I want to do on exit yet
         pass
 
-    def run_tool(self) -> None:
+    def execute(self) -> None:
         """
         The methods drive the main execution of the script
         :return: None
@@ -62,7 +63,7 @@ class GetNatGasRates:
 
         # get the rate_tables from user provided URL
         rate_tables = self.get_published_tables(self.auc_rates_url)
-        if len(rate_tables) > 1:
+        if isinstance(rate_tables, list) and len(rate_tables) > 1:
             # generate the tables
             html_tables = self.generate_html_tables(rate_tables)
 
@@ -91,7 +92,7 @@ class GetNatGasRates:
                 print("No emails sent")
 
     @staticmethod
-    def generate_html_tables(rate_tables: list[dict]) -> list[str]:
+    def generate_html_tables(rate_tables: list[dict]) -> Optional[list[str]]:
         """
         This method generates the rates tables to be inserted in the email to the users
         :param rate_tables: a dictionary of rates scraped from the AUC
@@ -100,10 +101,17 @@ class GetNatGasRates:
 
         html_tables = []
 
+        year = f"{datetime.datetime.now().strftime('%Y')}"
+        month = f"{datetime.datetime.now().strftime('%b')}"
+
         for index, table in enumerate(rate_tables):
             # look for current months nat gas value
-            if f"{datetime.datetime.now().strftime('%Y')}" not in table[0][0]:
+            if year not in table[0][0] and month not in table[len(table)-1][0]:
                 rate_tables.pop(index)
+
+        if len(rate_tables) != 2:
+            return None
+
         for table in rate_tables:
             title = table[0][0]
             table.pop(0)
@@ -219,4 +227,4 @@ if __name__ == "__main__":
         # if cli argument is flagged then it will delete all temp folder files and rebuild temp folder
         if args.purgeTempData:
             tool.purge_temp_folder()
-        tool.run_tool()
+        tool.execute()
