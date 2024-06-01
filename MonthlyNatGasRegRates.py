@@ -67,27 +67,28 @@ class GetNatGasRates:
             # generate the tables
             html_tables = self.generate_html_tables(rate_tables)
 
-            # create email body
-            regulated_rates = f"""
-            <body>
-            <p>This months updated Electricity and Natural Gas Rates are Below:</p>
-            {"".join(html_tables)}
-            <br>
-            <p>
-            Visit Enmax for the most current Enmax Rates: <a href="{self.enmax_rates}">Current Enmax Easymax Rates</a>
-            <br><br>
-            Cheers, 
-            <br>
-            Python Automator
-            </p>
-            """
+            if html_tables is not None:
+                # create email body
+                regulated_rates = f"""
+                <body>
+                <p>This months updated Electricity and Natural Gas Rates are Below:</p>
+                {"".join(html_tables)}
+                <br>
+                <p>
+                Visit Enmax for the most current Enmax Rates: <a href="{self.enmax_rates}">Current Enmax Easymax Rates</a>
+                <br><br>
+                Cheers, 
+                <br>
+                Python Automator
+                </p>
+                """
 
-            if self.send_email:
-                self.emailer(subject=f"Updated energy rates as of {datetime.datetime.now().strftime("%B %d, %Y")}", body=regulated_rates)
+                if self.send_email:
+                    self.emailer(subject=f"Updated energy rates as of {datetime.datetime.now().strftime("%B %d, %Y")}", body=regulated_rates)
 
-                with open(rate_sent_file, 'w') as file:
-                    file.write(f"{regulated_rates}\n\n{"#"*25}\n{"#"*25}\n{"#"*25}\n\n")
-                    file.close()
+                    with open(rate_sent_file, 'w') as file:
+                        file.write(f"{regulated_rates}\n\n{"#"*25}\n{"#"*25}\n{"#"*25}\n\n")
+                        file.close()
             else:
                 print("No emails sent")
 
@@ -102,17 +103,24 @@ class GetNatGasRates:
         html_tables = []
 
         year = f"{datetime.datetime.now().strftime('%Y')}"
-        month = f"{datetime.datetime.now().strftime('%b')}"
+        month = f"{datetime.datetime.now().strftime('%B')}"
 
-        for index, table in enumerate(rate_tables):
-            # look for current months nat gas value
-            if year not in table[0][0] and month not in table[len(table)-1][0]:
-                rate_tables.pop(index)
-
-        if len(rate_tables) != 2:
-            return None
+        tbls_by_yr = []
+        tbls_by_month = []
 
         for table in rate_tables:
+            # look for current months nat gas value
+            if year in table[0][0]:
+                tbls_by_yr.append(table)
+
+        for table in tbls_by_yr:
+            if month in table[len(table)-1][0]:
+                tbls_by_month.append(table)
+
+        if len(tbls_by_month) != 2:
+            return None
+
+        for table in tbls_by_month:
             title = table[0][0]
             table.pop(0)
             html = "<h2>{title}</h2>\n<table style='border: 3px solid black; border-collapse: collapse;'>\n".format(
