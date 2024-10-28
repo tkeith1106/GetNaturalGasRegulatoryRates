@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 import smtplib
 from typing import Optional
+from Logging import logger
 
 # cli arguments
 parser = argparse.ArgumentParser()
@@ -20,6 +21,13 @@ args = parser.parse_known_args()[0]
 class GetNatGasRates:
     # init class variables
     def __init__(self, send_email: bool = False):
+
+        self.logger = logger.Logger(
+            file_path=__file__,
+            debug=False,
+            args=args,
+            owner_email='itisme@tykeith.dev'
+        )
 
         # turn user args in vars
         self.auc_rates_url = r"https://ucahelps.alberta.ca/regulated-rates.aspx"
@@ -49,7 +57,8 @@ class GetNatGasRates:
 
     def __exit__(self, exc_type, exc_value, trace) -> None:
         # haven't decided what I want to do on exit yet
-        pass
+        if "logger" in globals():
+            self.logger.__exit__(exc_type, exc_value, trace)
 
     def execute(self) -> None:
         """
@@ -58,7 +67,7 @@ class GetNatGasRates:
         """
         rate_sent_file = os.path.join(self.temp_data_loc, f"{datetime.datetime.now().strftime("%B").lower()}_rates.txt")
         if os.path.exists(rate_sent_file):
-            print(f"No rate updates")
+            self.logger.log(f"No rate updates")
             return
 
         # get the rate_tables from user provided URL
@@ -66,6 +75,8 @@ class GetNatGasRates:
         if isinstance(rate_tables, list) and len(rate_tables) > 1:
             # generate the tables
             html_tables = self.generate_html_tables(rate_tables)
+
+            self.logger.log('Building email to end user')
 
             if html_tables is not None:
                 # create email body
@@ -89,16 +100,18 @@ class GetNatGasRates:
                     with open(rate_sent_file, 'w') as file:
                         file.write(f"{regulated_rates}\n\n{"#"*25}\n{"#"*25}\n{"#"*25}\n\n")
                         file.close()
+                        self.logger.log('Email sent')
             else:
-                print("No emails sent")
+                self.logger.log("No emails sent")
 
-    @staticmethod
-    def generate_html_tables(rate_tables: list[dict]) -> Optional[list[str]]:
+    def generate_html_tables(self, rate_tables: list[dict]) -> Optional[list[str]]:
         """
         This method generates the rates tables to be inserted in the email to the users
         :param rate_tables: a dictionary of rates scraped from the AUC
         :return: a List of html tables to be used in the email to be sent
         """
+
+        self.logger.log('Generating HTML tables')
 
         html_tables = []
 
@@ -149,6 +162,8 @@ class GetNatGasRates:
 
             html_tables.append(html)
 
+        self.logger.log(f'HTML table output: {html_tables}', "DEBUG")
+
         return html_tables
 
     def emailer(self, subject: str, body: str) -> None:
@@ -184,12 +199,14 @@ class GetNatGasRates:
         server.sendmail(self.email_sender, self.email_bcc_to, message.as_string())
         server.quit()
 
-    @staticmethod
-    def get_published_tables(url: str) -> list:
+    def get_published_tables(self, url: str) -> list:
         """
         This method returns all html tables from a given auc_rates_url
         :return:
         """
+
+        self.logger.log('Creating rates tables')
+
         # init variables
         tables = []
 
@@ -202,6 +219,8 @@ class GetNatGasRates:
         # export tables to dictionaries
         for item in all_tables:
             tables.append(item.to_dict(orient="index"))
+
+        self.logger.log(f'Rates tables output: {tables}', "DEBUG")
 
         return tables
 
