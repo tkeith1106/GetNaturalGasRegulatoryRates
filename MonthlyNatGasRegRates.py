@@ -30,7 +30,7 @@ class GetNatGasRates:
         )
 
         # turn user args in vars
-        self.auc_rates_url = r"https://ucahelps.alberta.ca/regulated-rates.aspx"
+        self.auc_rates_url = r"https://ucahelps.alberta.ca/your-utilities/rates/regulated-rates/"
         self.enmax_rates = r"https://www1.enmax.com/sign-up/build-my-plan"
         self.send_email = send_email
 
@@ -130,10 +130,10 @@ class GetNatGasRates:
             if month in table[len(table)-1][0]:
                 tbls_by_month.append(table)
 
-        if len(tbls_by_month) != 2:
+        if not (len(tbls_by_month) == 1 and any("Rate of Last Resort" in x for x in [tbls_by_yr[0][0][0], tbls_by_yr[1][0][0]])):
             return None
 
-        for table in tbls_by_month:
+        for table in tbls_by_yr:
             title = table[0][0]
             table.pop(0)
             html = "<h2>{title}</h2>\n<table style='border: 3px solid black; border-collapse: collapse;'>\n".format(
